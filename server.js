@@ -1,121 +1,85 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Sample in-memory "database"
+let Products = [
+  { id: 1, name: "Laptop", qty: 10 },
+  { id: 2, name: "Mouse", qty: 25 },
+  { id: 3, name: "Keyboard", qty: 15 }
+];
 
-const connectDB = async ()=>{
-   try{
-       const conn = await mongoose.connect("mongodb://127.0.0.1:27017/electronics");
-       console.log("Connected Mongo DB " + conn.connection.name);
-  }catch(e){
-       console.log("Error" + e.message);
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
+
+// Get all products
+app.get("/Products", (req, res) => {
+  console.log("GET /Products");
+  res.json(Products);
+});
+
+// Get single product by id
+app.get("/Products/:pid", (req, res) => {
+  const id = parseInt(req.params.pid);
+  const product = Products.find(p => p.id === id);
+
+  if (!product) {
+    return res.status(404).json({ msg: "Product Not Found" });
   }
-}
-connectDB();
 
-
-
-
-const productSchema = new mongoose.Schema({
-   id:Number,
-   name:String,
-   qty:Number
+  res.json(product);
 });
 
-const Product = mongoose.model("Products",productSchema);
+// Add new product
+app.post("/Products", (req, res) => {
+  const { id, name, qty } = req.body;
 
-app.get("/",(req,res)=>{
- res.send("Hello World");
+  // Check if product with same ID exists
+  const existing = Products.find(p => p.id === id);
+  if (existing) {
+    return res.status(400).json({ msg: "Product with this ID already exists" });
+  }
+
+  const newProduct = { id, name, qty };
+  Products.push(newProduct);
+
+  res.json({ Product: newProduct, msg: "Product added successfully" });
 });
 
+// Update product by id
+app.put("/Products/:pid", (req, res) => {
+  const id = parseInt(req.params.pid);
+  const { name, qty } = req.body;
 
-app.get("/Products",async(req,res)=>{
- console.log("tap");
- try{
-const Products = await Product.find({},{_v:0,_id:0});
- console.log(Products);
- res.json(Products);
- }catch(err){
-console.log("Error" + err.message);
- res.status(500).json({msg:err.message});
-}
-})
-app.get("/Products/:pid",async(req,res)=>{
+  const index = Products.findIndex(p => p.id === id);
+  if (index === -1) {
+    return res.status(404).json({ msg: "Product Not Found" });
+  }
 
- const id = parseInt(req.params.pid);
-try{
-const Product = await Product.findOne({id:id},{_v:0,_id:0});
-if(!Product){
- res.status(404).json({msg:"Product Not Found"});
- }
- res.json(Product);
- }catch(err){
-console.log("Error" + err.message);
- res.status(500).json({msg:err.message});
- }
- 
-})
+  if (name) Products[index].name = name;
+  if (qty !== undefined) Products[index].qty = qty;
 
-
-app.post("/Products",async(req,res)=>{
- const {id,name,qty}=req.body;
- const newProduct = new Product({id,name,qty}) ;
- 
- await newProduct.save();
- res.json({Product:newProduct,msg:"Product added successfully"});
- 
+  res.json({ msg: "Product updated successfully", Product: Products[index] });
 });
 
-app.put("/Products/:pid",async(req,res)=>{
- const id = parseInt(req.params.pid);
+// Delete product by id
+app.delete("/Products/:pid", (req, res) => {
+  const id = parseInt(req.params.pid);
+  const index = Products.findIndex(p => p.id === id);
 
- const {name} = req.body;
+  if (index === -1) {
+    return res.status(404).json({ msg: "Product Not Found" });
+  }
 
-try{
-     const result = await Product.updateOne({id:id},{
- $set:{
- name : req.body.name
- }
- });
- if(result.matchedCount == 0){
- res.status(404).json({err:"Product Not Found"});
- }else{
-
- console.log(result);
- res.json({msg:"Product updated successfully"});
- }
- }catch(e){
- console.log("Error" + e.message);
- res.status(500).json({msg:e.message})
-}
-
-
+  const deletedProduct = Products.splice(index, 1);
+  res.json({ msg: "Product deleted successfully", Product: deletedProduct[0] });
 });
 
-app.delete("/Products/:pid",async(req,res)=>{
-     const id = parseInt(req.params.pid);
-
- 
- try{
-const result = await Product.deleteOne({id:id});
- if(result.deletedCount == 0){
- res.status(404).json({err:"Product Not Found"});
- }else{
-
- res.json({msg:"Product Deleted successfully"});
- }
- }catch(e){
-console.log("Error" + err.message);
- res.status(500).json({msg:err.message});
- }
-});
-
-
-app.listen(3000,(req,res)=>{
-console.log("Server Started at Port 3000");
+// Start server
+app.listen(3000, () => {
+  console.log("Server started at Port 3000");
 });
